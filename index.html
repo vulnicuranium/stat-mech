@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mean-Field Ising Explorer</title>
+<style>
+/* Layout: classic physics-applet page — plain title, one grey-bordered applet (control column + 2x2 graph-paper plots), plain instructions underneath. Deliberately single light theme. */
+:root {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --fg: #000000;
+  --muted: #444444;
+  --line: #888888;
+  --grid: #e3e3e3;
+  --meta: #9a9a9a;
+  --accent: #1f5fbf;
+  --up: #cc2222;
+  --down: #2a7a2a;
+  --font-body: Arial, Helvetica, sans-serif;
+  --font-mono: Arial, Helvetica, sans-serif;
+  --font-math: "Times New Roman", Times, serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.45; }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 40px;
+}
+.masthead { border-bottom: 2px solid #1f3f6f; padding-bottom: 6px; margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.masthead .site { font-size: 22px; font-weight: bold; color: #1f3f6f; }
+.masthead .tag { font-style: italic; color: #555; }
+h1 { font-size: 20px; margin: 0 0 4px; font-weight: bold; }
+.lede { margin: 0 0 12px; color: #222; max-width: 80ch; }
+.math { font-family: var(--font-math); font-style: italic; font-size: 1.12em; }
+
+.applet { border: 1px solid var(--line); background: #fff; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+.side { border-right: 1px solid #c8c8c8; padding: 12px; display: flex; flex-direction: column; gap: 14px; background: #fafafa; min-width: 0; }
+.slider { display: flex; flex-direction: column; gap: 2px; }
+.slider label { font-size: 14px; }
+.val { font-family: var(--font-body); font-variant-numeric: tabular-nums; font-weight: bold; }
+.hint { font-size: 12px; color: #666; }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: transparent; margin: 0; }
+input[type=range]::-webkit-slider-runnable-track { height: 3px; background: #333; }
+input[type=range]::-moz-range-track { height: 3px; background: #333; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); border: 1.5px solid #000; margin-top: -6px; cursor: pointer; }
+input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: var(--accent); border: 1.5px solid #000; cursor: pointer; }
+.group { display: flex; flex-direction: column; gap: 5px; }
+.group .lbl { font-size: 12px; font-weight: bold; color: #333; }
+.btns { display: flex; flex-wrap: wrap; gap: 5px; }
+button {
+  font-family: var(--font-body); font-size: 13px; padding: 4px 9px; cursor: pointer;
+  border: 1px solid #999; border-radius: 3px; color: #000;
+  background: linear-gradient(#ffffff, #e4e4e4);
+}
+button:hover { background: linear-gradient(#ffffff, #d6d6d6); border-color: #666; }
+button:active { background: #d0d0d0; }
+button:focus-visible, input:focus-visible { outline: 2px dotted #000; outline-offset: 2px; }
+button.primary { font-weight: bold; }
+.toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+
+.readouts { border: 1px solid #c8c8c8; background: #fff; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.readouts .head { font-weight: bold; font-size: 12px; color: #333; }
+.ro { display: flex; flex-direction: column; }
+.ro .k { color: #555; font-size: 12px; }
+.ro .v { font-weight: bold; font-variant-numeric: tabular-nums; }
+.ro .s { color: #555; font-size: 12px; }
+.pill { font-weight: normal; font-style: italic; margin-left: 4px; color: #555; }
+.pill.meta { color: var(--up); }
+
+.plots { display: grid; grid-template-columns: 1fr 1fr; min-width: 0; }
+.panel { padding: 8px 10px 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0; border-bottom: 1px solid #c8c8c8; }
+.panel:nth-child(odd) { border-right: 1px solid #c8c8c8; }
+.panel h2 { margin: 0; font-size: 13px; font-weight: bold; }
+.panel .sub { margin: 0; font-size: 12px; color: #555; }
+.panel canvas { width: 100%; height: 270px; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 11.5px; color: #333; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.sw { width: 18px; height: 0; border-top: 2.5px solid var(--accent); display: inline-block; }
+.sw.dash { border-top-style: dashed; }
+.sw.dot { border-top: 2px dotted var(--muted); }
+.sw.g { border-top: 1.5px dashed var(--meta); }
+.mk { width: 9px; height: 9px; border-radius: 50%; display: inline-block; border: 1.5px solid #000; }
+.mk.global { background: #000; }
+.mk.meta { background: var(--meta); }
+.mk.unstable { background: #fff; }
+.lattice { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
+.lattice h2 { margin: 0; font-size: 13px; font-weight: bold; }
+.lattice .sub { margin: 0; font-size: 12px; color: #555; }
+.lattice canvas { width: 100%; height: 110px; display: block; }
+
+.key { border: 1px solid var(--line); border-bottom: none; background: #fafafa; padding: 7px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 13px; }
+.key .lbl { font-weight: bold; font-size: 12px; color: #333; }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.ballk { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2.5px solid #fff; box-shadow: 0 0 0 1px #999; }
+.ringk { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid var(--up); }
+.notes { margin-top: 16px; max-width: 85ch; }
+.notes h3 { font-size: 15px; margin: 14px 0 4px; }
+.notes p, .notes li { margin: 0 0 6px; }
+.notes ul { margin: 0 0 6px; padding-left: 22px; }
+.eq { font-family: var(--font-math); font-size: 16px; padding: 2px 0 6px 20px; overflow-x: auto; white-space: nowrap; }
+.foot { margin-top: 18px; padding-top: 6px; border-top: 1px solid #ccc; font-size: 12px; color: #666; }
+
+@media (max-width: 900px) {
+  .applet { grid-template-columns: 1fr; }
+  .side { border-right: none; border-bottom: 1px solid #c8c8c8; }
+  .plots { grid-template-columns: 1fr; }
+  .panel:nth-child(odd) { border-right: none; }
+}
+@media (max-width: 560px) { .panel canvas { height: 240px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mean-Field Ising Model</h1>
+  <p class="lede">Adjust the temperature and the applied field with the sliders. The free energy, the self-consistency equation <span class="math">m</span> = tanh β(<span class="math">qJm</span> + <span class="math">h</span>), and the magnetization update together. Units are chosen so that <span class="math">k</span><sub>B</sub><span class="math">T</span><sub>c</sub> = <span class="math">qJ</span> = 1.</p>
+
+  <div class="key" aria-label="Legend for all graphs">
+    <span class="lbl">Key:</span>
+    <span><i class="ballk" style="background:var(--up)"></i>the system (ball), <i>m</i> &gt; 0</span>
+    <span><i class="ballk" style="background:var(--down)"></i>the system, <i>m</i> &lt; 0</span>
+    <span><i class="ballk" style="background:var(--accent)"></i>the system, <i>m</i> ≈ 0</span>
+    <span><i class="ringk"></i>the system's solution (graph 2)</span>
+    <span><i class="mk global"></i>stable: global minimum, equilibrium</span>
+    <span><i class="mk meta"></i>metastable: local minimum</span>
+    <span><i class="mk unstable"></i>unstable: maximum</span>
+  </div>
+  <div class="applet">
+    <div class="side">
+      <div class="slider">
+        <label for="sT"><span class="math">T</span> / <span class="math">T</span><sub>c</sub> = <span class="val" id="vT">0.70</span></label>
+        <input type="range" id="sT" min="0.3" max="1.8" step="0.01" value="0.7">
+        <span class="hint">Below 1: two valleys. Above 1: one.</span>
+      </div>
+      <div class="slider">
+        <label for="sH"><span class="math">h</span> / <span class="math">k</span><sub>B</sub><span class="math">T</span><sub>c</sub> = <span class="val" id="vH">0.000</span></label>
+        <input type="range" id="sH" min="-0.3" max="0.3" step="0.005" value="0">
+        <span class="hint">Tilts the double well.</span>
+      </div>
+      <div class="group">
+        <span class="lbl">Run</span>
+        <div class="btns">
+          <button class="primary" id="sweep">Sweep h</button>
+          <button id="clear">Clear trail</button>
+          <button id="eq">Equilibrate</button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="lbl">Presets (T/Tc, h)</span>
+        <div class="btns">
+          <button data-preset="two">0.7, 0</button>
+          <button data-preset="crit">1.0, 0</button>
+          <button data-preset="para">1.5, 0</button>
+          <button data-preset="meta">0.7, 0.05</button>
+        </div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="showG" checked> Show <span class="math">g</span>(<span class="math">m</span>) from Eq. 2</label>
+      <div class="readouts" aria-live="polite">
+        <span class="head">Readout</span>
+        <div class="ro"><span class="k">Phase</span><span class="v" id="roPhase">Ordered</span><span class="s" id="roPhaseS"></span></div>
+        <div class="ro"><span class="k">Magnetization of ball</span><span class="v" id="roM">0.000</span><span class="s" id="roMS"></span></div>
+        <div class="ro"><span class="k">Solutions of Eq. 3</span><span class="v" id="roN">3</span><span class="s" id="roNS"></span></div>
+        <div class="ro"><span class="k">Susceptibility χ = ∂m/∂h</span><span class="v" id="roChi">0</span><span class="s" id="roChiS"></span></div>
+      </div>
+    </div>
+
+    <div class="plots">
+      <div class="panel">
+        <h2>Free energy vs. m</h2>
+        <p class="sub"><span class="math">a</span>(<span class="math">m</span>) − <span class="math">a</span>(0) − <span class="math">hm</span>. The ball rolls to the bottom of its valley.</p>
+        <canvas id="cF" aria-label="Free energy versus magnetization"></canvas>
+        <div class="legend">
+          <span><i class="sw"></i>a(m) − hm</span>
+          <span id="lgG"><i class="sw g"></i>g(m)</span>
+          <span><i class="mk global"></i>stable</span>
+          <span><i class="mk meta"></i>metastable</span>
+          <span><i class="mk unstable"></i>unstable</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Graphical solution (Fig. 3)</h2>
+        <p class="sub">tanh β(<span class="math">qJm</span> + <span class="math">h</span>) and the line <span class="math">y</span> = <span class="math">m</span>.</p>
+        <canvas id="cS" aria-label="tanh curve and the line y equals m"></canvas>
+        <div class="legend">
+          <span><i class="sw"></i>tanh β(qJm + h)</span>
+          <span><i class="sw dot"></i>y = m</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>m vs. h at this T</h2>
+        <p class="sub">Grey trail: the path the ball actually took.</p>
+        <canvas id="cH" aria-label="Magnetization versus field"></canvas>
+        <div class="legend">
+          <span><i class="sw"></i>stable</span>
+          <span><i class="sw dash"></i>metastable</span>
+          <span><i class="sw dot"></i>unstable</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>m vs. T</h2>
+        <p class="sub">±<span class="math">m</span><sub>0</sub> at <span class="math">h</span> = 0 (grey); equilibrium at current <span class="math">h</span> (blue).</p>
+        <canvas id="cT" aria-label="Magnetization versus temperature"></canvas>
+        <div class="legend">
+          <span><i class="sw" style="border-color:var(--meta)"></i>±m₀(T)</span>
+          <span><i class="sw"></i>m(T) at current h</span>
+          <span><i class="sw dot"></i>m = 0, unstable</span>
+        </div>
+      </div>
+      <div class="lattice">
+        <h2>Spin snapshot</h2>
+        <p class="sub">Independent spins with ⟨<span class="math">s</span><sub>i</sub>⟩ = <span class="math">m</span>, the mean-field picture. Red = up (+1), green = down (−1). <span id="latS"></span></p>
+        <canvas id="cL" aria-label="Snapshot of spins"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Description</h3>
+    <p>This simulation solves the mean-field Ising model exactly within the approximation. The derivations below go step by step from the Hamiltonian to everything plotted above. In the simulation, units are <i>k</i><sub>B</sub><i>T</i><sub>c</sub> = <i>qJ</i> = 1.</p>
+
+    <h3>1. Mean-field Hamiltonian</h3>
+    <p>Start from the Ising Hamiltonian with <i>N</i> spins <i>s<sub>i</sub></i> = ±1, each with <i>q</i> nearest neighbors:</p>
+    <div class="eq">ℋ = −<i>J</i> Σ<sub>⟨<i>ij</i>⟩</sub> <i>s<sub>i</sub>s<sub>j</sub></i> − <i>h</i> Σ<sub><i>i</i></sub> <i>s<sub>i</sub></i></div>
+    <p>Write each spin as its average plus a fluctuation, <i>s<sub>i</sub></i> = <i>m</i> + δ<i>s<sub>i</sub></i>, where <i>m</i> = ⟨<i>s<sub>i</sub></i>⟩. Then, exactly,</p>
+    <div class="eq"><i>s<sub>i</sub>s<sub>j</sub></i> = <i>m</i>² + <i>m</i>(<i>s<sub>i</sub></i> − <i>m</i>) + <i>m</i>(<i>s<sub>j</sub></i> − <i>m</i>) + δ<i>s<sub>i</sub></i>δ<i>s<sub>j</sub></i></div>
+    <p>Dropping δ<i>s<sub>i</sub></i>δ<i>s<sub>j</sub></i>, which means assuming ⟨<i>s<sub>i</sub>s<sub>j</sub></i>⟩ ≈ ⟨<i>s<sub>i</sub></i>⟩⟨<i>s<sub>j</sub></i>⟩, leaves <i>s<sub>i</sub>s<sub>j</sub></i> ≈ −<i>m</i>² + <i>m</i>(<i>s<sub>i</sub></i> + <i>s<sub>j</sub></i>). There are <i>Nq</i>/2 bonds, and each spin sits on <i>q</i> of them, so Σ<sub>⟨<i>ij</i>⟩</sub>(<i>s<sub>i</sub></i> + <i>s<sub>j</sub></i>) = <i>q</i> Σ<sub><i>i</i></sub> <i>s<sub>i</sub></i>. Therefore</p>
+    <div class="eq">ℋ ≈ <i>NqJm</i>²/2 − (<i>qJm</i> + <i>h</i>) Σ<sub><i>i</i></sub> <i>s<sub>i</sub></i></div>
+    <p>Each spin now feels an effective field <i>h</i><sub>eff</sub> = <i>qJm</i> + <i>h</i>, and no term couples two spins.</p>
+
+    <h3>2. Partition function and g(h, T)</h3>
+    <p>Because the spins are decoupled, the sum over all 2<sup><i>N</i></sup> configurations factorizes into <i>N</i> identical single-spin sums:</p>
+    <div class="eq"><i>Z</i> = e<sup>−β<i>NqJm</i>²/2</sup> Π<sub><i>i</i></sub> Σ<sub><i>s</i>=±1</sub> e<sup>β<i>h</i><sub>eff</sub><i>s</i></sup> = e<sup>−β<i>NqJm</i>²/2</sup> [2 cosh β(<i>qJm</i> + <i>h</i>)]<sup><i>N</i></sup></div>
+    <p>With <i>h</i> held fixed, −<i>k</i><sub>B</sub><i>T</i> ln <i>Z</i> plays the role of a Gibbs free energy. Per spin:</p>
+    <div class="eq"><i>g</i>(<i>h</i>, <i>T</i>) = <i>qJm</i>²/2 − <i>k</i><sub>B</sub><i>T</i> ln[2 cosh β(<i>qJm</i> + <i>h</i>)] &nbsp;&nbsp;&nbsp; (Eq. 2)</div>
+    <p>This is the dashed curve in the first graph, plotted as a function of the trial value <i>m</i>.</p>
+
+    <h3>3. Self-consistency equation</h3>
+    <p>Differentiate Eq. 2 with respect to <i>h</i>. Using d(ln cosh <i>x</i>)/d<i>x</i> = tanh <i>x</i>,</p>
+    <div class="eq"><i>m</i> = −(∂<i>g</i>/∂<i>h</i>)<sub><i>T</i></sub> = <i>k</i><sub>B</sub><i>T</i> · β tanh β(<i>qJm</i> + <i>h</i>) = tanh β(<i>qJm</i> + <i>h</i>) &nbsp;&nbsp;&nbsp; (Eq. 3)</div>
+    <p>Setting ∂<i>g</i>/∂<i>m</i> = <i>qJm</i> − <i>qJ</i> tanh β(<i>qJm</i> + <i>h</i>) = 0 gives the same equation, so the solutions are the extrema of <i>g</i>. The second graph finds them as the crossings of tanh β(<i>qJm</i> + <i>h</i>) with the line <i>y</i> = <i>m</i>.</p>
+
+    <h3>4. Critical temperature</h3>
+    <p>At <i>h</i> = 0, <i>m</i> = 0 always solves Eq. 3. For small <i>m</i>, tanh <i>x</i> ≈ <i>x</i>, so the right side starts out as β<i>qJm</i>, with slope β<i>qJ</i>. Because tanh saturates at ±1, the curve crosses <i>y</i> = <i>m</i> again at ±<i>m</i><sub>0</sub> only if it starts out steeper than the line:</p>
+    <div class="eq">β<i>qJ</i> &gt; 1 &nbsp;&nbsp;⟹&nbsp;&nbsp; <i>k</i><sub>B</sub><i>T</i><sub>c</sub> = <i>qJ</i></div>
+
+    <h3>5. Helmholtz route: a(m)</h3>
+    <p>Treat each spin as independent, with <i>p</i><sub>±</sub> = (1 ± <i>m</i>)/2, so that ⟨<i>s</i>⟩ = <i>p</i><sub>+</sub> − <i>p</i><sub>−</sub> = <i>m</i>. The entropy per spin is that of one site, and the energy uses ⟨<i>s<sub>i</sub>s<sub>j</sub></i>⟩ ≈ <i>m</i>² on each of <i>q</i>/2 bonds per spin:</p>
+    <div class="eq"><i>s</i> = −<i>k</i><sub>B</sub>[<i>p</i><sub>+</sub> ln <i>p</i><sub>+</sub> + <i>p</i><sub>−</sub> ln <i>p</i><sub>−</sub>], &nbsp;&nbsp; <i>e</i> = −<i>qJm</i>²/2</div>
+    <div class="eq"><i>a</i>(<i>m</i>) = <i>e</i> − <i>Ts</i> = −<i>qJm</i>²/2 + <i>k</i><sub>B</sub><i>T</i>[<i>p</i><sub>+</sub> ln <i>p</i><sub>+</sub> + <i>p</i><sub>−</sub> ln <i>p</i><sub>−</sub>]</div>
+    <p>In a field, minimize <i>a</i>(<i>m</i>) − <i>hm</i>; this is the solid curve. The derivative of the entropy term is (<i>k</i><sub>B</sub><i>T</i>/2) ln[(1 + <i>m</i>)/(1 − <i>m</i>)] = <i>k</i><sub>B</sub><i>T</i> tanh<sup>−1</sup><i>m</i>, so</p>
+    <div class="eq">∂(<i>a</i> − <i>hm</i>)/∂<i>m</i> = −<i>qJm</i> + <i>k</i><sub>B</sub><i>T</i> tanh<sup>−1</sup><i>m</i> − <i>h</i> = 0 &nbsp;&nbsp;⟹&nbsp;&nbsp; <i>m</i> = tanh β(<i>qJm</i> + <i>h</i>)</div>
+
+    <h3>6. Why the two curves touch</h3>
+    <p>At a solution, β(<i>qJm</i> + <i>h</i>) = tanh<sup>−1</sup><i>m</i>. Two identities follow:</p>
+    <div class="eq">ln[2 cosh(tanh<sup>−1</sup><i>m</i>)] = ln 2 − ½ ln(1 − <i>m</i>²)</div>
+    <div class="eq"><i>p</i><sub>+</sub> ln <i>p</i><sub>+</sub> + <i>p</i><sub>−</sub> ln <i>p</i><sub>−</sub> = −ln 2 + ½ ln(1 − <i>m</i>²) + <i>m</i> tanh<sup>−1</sup><i>m</i></div>
+    <p>Substitute the second into <i>a</i> − <i>hm</i> and use <i>k</i><sub>B</sub><i>T m</i> tanh<sup>−1</sup><i>m</i> = <i>qJm</i>² + <i>hm</i>:</p>
+    <div class="eq"><i>a</i> − <i>hm</i> = <i>qJm</i>²/2 − <i>k</i><sub>B</sub><i>T</i> ln 2 + ½<i>k</i><sub>B</sub><i>T</i> ln(1 − <i>m</i>²) = <i>g</i></div>
+    <p>So the curves agree in value at every solution, as the Legendre relation <i>a</i> = <i>g</i> + <i>hm</i> requires, even though their shapes differ elsewhere.</p>
+
+    <h3>7. Stability and the spinodal</h3>
+    <p>A solution is a minimum (stable or metastable) when the curvature is positive:</p>
+    <div class="eq">∂²(<i>a</i> − <i>hm</i>)/∂<i>m</i>² = −<i>qJ</i> + <i>k</i><sub>B</sub><i>T</i>/(1 − <i>m</i>²) &gt; 0 &nbsp;&nbsp;⟺&nbsp;&nbsp; <i>m</i>² &gt; 1 − <i>T</i>/<i>T</i><sub>c</sub></div>
+    <p>Below <i>T</i><sub>c</sub>, a metastable valley vanishes when its minimum merges with the hump, at the spinodal <i>m<sub>s</sub></i>² = 1 − <i>T</i>/<i>T</i><sub>c</sub>. Putting this into Eq. 3 solved for <i>h</i> gives the field at which the ball jumps in the hysteresis graph:</p>
+    <div class="eq"><i>h<sub>s</sub></i> = <i>k</i><sub>B</sub><i>T</i> tanh<sup>−1</sup><i>m<sub>s</sub></i> − <i>qJm<sub>s</sub></i></div>
+    <p>The curvature is also the inverse susceptibility, χ = ∂<i>m</i>/∂<i>h</i> = [−<i>qJ</i> + <i>k</i><sub>B</sub><i>T</i>/(1 − <i>m</i>²)]<sup>−1</sup>, which is the readout in the left column.</p>
+
+    <h3>8. Expansion near T<sub>c</sub> and the exponents</h3>
+    <p>At <i>h</i> = 0, expand Eq. 2 using ln cosh <i>x</i> ≈ <i>x</i>²/2 − <i>x</i><sup>4</sup>/12:</p>
+    <div class="eq"><i>g</i> ≈ −<i>k</i><sub>B</sub><i>T</i> ln 2 + (<i>qJ</i>/2)(1 − <i>T</i><sub>c</sub>/<i>T</i>) <i>m</i>² + (<i>k</i><sub>B</sub><i>T</i>/12)(<i>T</i><sub>c</sub>/<i>T</i>)<sup>4</sup> <i>m</i><sup>4</sup> &nbsp;&nbsp;&nbsp; (Eq. 4)</div>
+    <p>The quartic coefficient is always positive. The quadratic coefficient changes sign at <i>T</i><sub>c</sub>, which is why one valley splits into two. Minimizing gives <i>m</i><sub>0</sub>² ≈ 3(−<i>t</i>), so β = 1/2 (see the <i>m</i> vs. <i>T</i> graph). Solving Eq. 3 for <i>h</i> with tanh<sup>−1</sup><i>m</i> ≈ <i>m</i> + <i>m</i>³/3 gives</p>
+    <div class="eq"><i>h</i> ≈ <i>k</i><sub>B</sub>(<i>T</i> − <i>T</i><sub>c</sub>)<i>m</i> + (<i>k</i><sub>B</sub><i>T</i>/3)<i>m</i>³</div>
+    <p>At <i>T</i> = <i>T</i><sub>c</sub>, <i>m</i> ∼ <i>h</i><sup>1/3</sup>, so δ = 3. Above <i>T</i><sub>c</sub>, χ = 1/[<i>k</i><sub>B</sub>(<i>T</i> − <i>T</i><sub>c</sub>)], so γ = 1. The heat capacity jumps by 3<i>k</i><sub>B</sub>/2 per spin at <i>T</i><sub>c</sub>, so α = 0.</p>
+
+    <h3>Things to try</h3>
+    <ul>
+      <li>At <i>h</i> = 0, lower <i>T</i> through <i>T</i><sub>c</sub> and watch one valley split into two.</li>
+      <li>At <i>T</i> = <i>T</i><sub>c</sub>, the bottom of the well is flat (quartic only) and χ becomes infinite.</li>
+      <li>At <i>T</i> = 0.7<i>T</i><sub>c</sub>, click Sweep h. The ball stays in the higher valley until it disappears at ±<i>h<sub>s</sub></i>, tracing a hysteresis loop.</li>
+    </ul>
+    <h3>Markers</h3>
+    <p>Filled black: global minimum (equilibrium). Grey: local minimum (metastable). Open: maximum (unstable).</p>
+  </div>
+  <div class="foot">Based on CHEM 363 lecture notes, §41 "Mean machine."</div>
+</div>
+
+<script>
+(() => {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const S = { T: 0.7, h: 0, m: 0.8, mDisp: 0.8, showG: true, trail: [], roots: [], bias: Math.random() < 0.5 ? -1 : 1, sweep: null, dirty: true };
+  const $ = id => document.getElementById(id);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  // ---- physics (units kB Tc = qJ = 1) ----
+  const atanh = x => 0.5 * Math.log((1 + x) / (1 - x));
+  const ln2cosh = x => { const a = Math.abs(x); return a + Math.log1p(Math.exp(-2 * a)); };
+  const xlnx = x => x > 0 ? x * Math.log(x) : 0;
+  const aOf = (m, T) => -m * m / 2 + T * (xlnx((1 + m) / 2) + xlnx((1 - m) / 2));
+  const a0 = T => -T * Math.LN2;
+  const F = (m, T = S.T, h = S.h) => aOf(m, T) - h * m - a0(T);
+  const G = (m, T = S.T, h = S.h) => m * m / 2 - T * ln2cosh((m + h) / T) - a0(T);
+  const Fp = (m, T = S.T, h = S.h) => -m - h + T * atanh(m);
+  const Fpp = (m, T = S.T) => -1 + T / (1 - m * m);
+  const clampM = m => Math.max(-0.999999, Math.min(0.999999, m));
+
+  function findRoots(T, h) {
+    const M = 0.9999995, n = 5000, out = [];
+    let pm = -M, pv = Fp(pm, T, h);
+    for (let i = 1; i <= n; i++) {
+      const m = -M + 2 * M * i / n, v = Fp(m, T, h);
+      if (v === 0) out.push(m);
+      else if (pv * v < 0) {
+        let lo = pm, hi = m, flo = pv;
+        for (let k = 0; k < 60; k++) { const mid = (lo + hi) / 2, fm = Fp(mid, T, h); if (fm * flo <= 0) hi = mid; else { lo = mid; flo = fm; } }
+        out.push((lo + hi) / 2);
+      }
+      pm = m; pv = v;
+    }
+    const roots = out.filter((r, i) => i === 0 || Math.abs(r - out[i - 1]) > 1e-6)
+      .map(r => ({ m: r, stable: Fpp(r, T) >= -1e-9, f: F(r, T, h) }));
+    const stable = roots.filter(r => r.stable);
+    const fmin = Math.min(...stable.map(r => r.f));
+    roots.forEach(r => r.kind = !r.stable ? 'unstable' : (r.f <= fmin + 1e-9 ? 'global' : 'meta'));
+    return roots;
+  }
+
+  // follow the valley the ball is in: go downhill to the nearest root
+  function relax(m) {
+    m = clampM(m);
+    let v = Fp(m);
+    if (Math.abs(v) < 1e-10 && Fpp(m) < 0) { m = clampM(m + S.bias * 1e-3); v = Fp(m); }
+    const R = S.roots;
+    let t;
+    if (v > 0) { const c = R.filter(r => r.m < m); t = c.length ? c[c.length - 1] : null; }
+    else { const c = R.filter(r => r.m > m); t = c.length ? c[0] : null; }
+    if (!t || !t.stable) t = R.find(r => r.kind === 'global');
+    return t.m;
+  }
+  const kindOf = m => { const r = S.roots.reduce((b, r) => Math.abs(r.m - m) < Math.abs(b.m - m) ? r : b, S.roots[0]); return r.kind; };
+
+  // aligned (global) solution at given T, h != 0; or spontaneous m0 at h = 0
+  function alignedM(T, h) {
+    const s = h >= 0 ? 1 : -1, ha = Math.abs(h);
+    if (ha === 0 && T >= 1) return 0;
+    let lo = 0, hi = 0.9999999;
+    if (ha === 0) lo = 1e-9;
+    for (let k = 0; k < 60; k++) { const mid = (lo + hi) / 2; if (T * atanh(mid) - mid - ha < 0) lo = mid; else hi = mid; }
+    return s * (lo + hi) / 2;
+  }
+
+  // ---- state updates ----
+  function update(opts = {}) {
+    S.roots = findRoots(S.T, S.h);
+    if (opts.setM !== undefined) S.m = opts.setM;
+    S.m = relax(S.m);
+    if (S.m !== 0) S.bias = Math.sign(S.m);
+    if (opts.trail) S.trail.push([S.h, S.m]);
+    if (S.trail.length > 4000) S.trail.shift();
+    if (reduceMotion) S.mDisp = S.m;
+    $('vT').textContent = S.T.toFixed(2);
+    $('vH').textContent = (S.h >= 0 ? '+' : '−') + Math.abs(S.h).toFixed(3);
+    readouts();
+    S.dirty = true;
+  }
+
+  const fmt = (x, d = 3) => (x < 0 ? '−' : x > 0 ? '+' : '') + Math.abs(x).toFixed(d);
+  function readouts() {
+    const T = S.T, h = S.h, R = S.roots;
+    let phase, ps;
+    if (Math.abs(T - 1) < 0.005) { phase = 'Critical'; ps = 'Flat-bottomed well; quadratic term vanishes'; }
+    else if (T < 1) {
+      phase = 'Ordered';
+      const ms = Math.sqrt(1 - T), hs = T * atanh(ms) - ms;
+      ps = `Below Tc. Spinodal field ±${hs.toFixed(3)}`;
+    } else { phase = 'Disordered'; ps = 'Above Tc: single valley'; }
+    $('roPhase').textContent = phase; $('roPhaseS').textContent = ps;
+
+    const k = kindOf(S.m);
+    $('roM').innerHTML = fmt(S.m) + `<span class="pill ${k}">${k === 'global' ? 'equilibrium' : k === 'meta' ? 'metastable' : 'unstable'}</span>`;
+    const gl = R.filter(r => r.kind === 'global');
+    $('roMS').textContent = k === 'meta' ? `Equilibrium is m = ${fmt(gl[0].m)}` : (gl.length > 1 ? `Coexists with m = ${fmt(-S.m)}` : 'This is the lowest valley');
+
+    const ns = R.filter(r => r.kind !== 'unstable').length, nu = R.length - ns;
+    $('roN').textContent = R.length;
+    $('roNS').textContent = `${ns} minimum${ns > 1 ? 'a' : ''}, ${nu} maximum${nu === 1 ? '' : 'a'}`;
+
+    const c = Fpp(S.m);
+    $('roChi').textContent = c < 1e-4 ? '∞' : (1 / c < 1000 ? (1 / c).toFixed(2) : (1 / c).toExponential(1));
+    $('roChiS').textContent = T > 1 && Math.abs(h) < 1e-9 ? `Curie law: 1/(T − Tc) = ${(1 / (T - 1)).toFixed(2)}` : 'In units of 1/kBTc';
+  }
+
+  // ---- drawing helpers ----
+  const panels = {};
+  function setup(id, draw) {
+    const c = $(id), ctx = c.getContext('2d');
+    panels[id] = { c, ctx, draw, W: 0, H: 0 };
+  }
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    for (const p of Object.values(panels)) {
+      const r = p.c.getBoundingClientRect();
+      p.W = r.width; p.H = r.height;
+      p.c.width = Math.round(r.width * dpr); p.c.height = Math.round(r.height * dpr);
+      p.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    S.dirty = true;
+  }
+  function niceTicks(a, b, n = 5) {
+    const raw = (b - a) / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    const step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag, out = [];
+    for (let v = Math.ceil(a / step) * step; v <= b + 1e-12; v += step) out.push(+v.toFixed(10));
+    return out;
+  }
+  const tickLabel = v => { const s = Math.abs(v) < 1e-12 ? '0' : (+v.toFixed(3)).toString(); return s.replace('-', '−'); };
+
+  function axes(p, v, o) {
+    const { ctx, W, H } = p, L = 44, R = 12, Tp = 10, B = 30;
+    const pw = W - L - R, ph = H - Tp - B;
+    const X = x => L + (x - v.x0) / (v.x1 - v.x0) * pw, Y = y => Tp + (v.y1 - y) / (v.y1 - v.y0) * ph;
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineWidth = 1; ctx.setLineDash([]);
+    ctx.font = `11px ${css('--font-body')}`;
+    ctx.strokeStyle = css('--grid');
+    o.xt.forEach(t => { ctx.beginPath(); ctx.moveTo(X(t), Tp); ctx.lineTo(X(t), Tp + ph); ctx.stroke(); });
+    o.yt.forEach(t => { ctx.beginPath(); ctx.moveTo(L, Y(t)); ctx.lineTo(L + pw, Y(t)); ctx.stroke(); });
+    // light frame, then black axes with arrowheads (graph-paper style)
+    ctx.strokeStyle = '#c8c8c8'; ctx.lineWidth = 1; ctx.strokeRect(L + .5, Tp + .5, pw - 1, ph - 1);
+    const ay = (v.y0 < 0 && v.y1 > 0) ? Y(0) : Tp + ph, ax = (v.x0 <= 0 && v.x1 > 0) ? X(0) : L;
+    ctx.strokeStyle = '#000'; ctx.fillStyle = '#000'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(L, ay); ctx.lineTo(L + pw, ay); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ax, Tp + ph); ctx.lineTo(ax, Tp); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(L + pw, ay); ctx.lineTo(L + pw - 8, ay - 4); ctx.lineTo(L + pw - 8, ay + 4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(ax, Tp); ctx.lineTo(ax - 4, Tp + 8); ctx.lineTo(ax + 4, Tp + 8); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1;
+    o.xt.forEach(t => { ctx.beginPath(); ctx.moveTo(X(t), ay - 3); ctx.lineTo(X(t), ay + 3); ctx.stroke(); });
+    o.yt.forEach(t => { ctx.beginPath(); ctx.moveTo(ax - 3, Y(t)); ctx.lineTo(ax + 3, Y(t)); ctx.stroke(); });
+    ctx.fillStyle = '#222';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    o.xt.forEach(t => ctx.fillText(tickLabel(t), X(t), Tp + ph + 5));
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    o.yt.forEach(t => ctx.fillText(tickLabel(t), L - 6, Y(t)));
+    ctx.font = `italic 14px ${css('--font-math')}`; ctx.fillStyle = css('--fg');
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillText(o.xl, L + pw - 6, ay - 6);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(o.yl, ax + 8, Tp + 2);
+    return { X, Y, clip() { ctx.save(); ctx.beginPath(); ctx.rect(L, Tp, pw, ph); ctx.clip(); } };
+  }
+  function curve(ctx, pts, X, Y) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))); ctx.stroke(); }
+  function marker(ctx, x, y, kind) {
+    ctx.setLineDash([]); ctx.lineWidth = 1.6; ctx.strokeStyle = css('--fg');
+    ctx.fillStyle = kind === 'global' ? css('--fg') : kind === 'meta' ? css('--meta') : css('--panel');
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+  }
+  const spinColor = m => Math.abs(m) < 0.02 ? css('--accent') : (m > 0 ? css('--up') : css('--down'));
+  function ball(ctx, x, y, m, r = 7) {
+    ctx.setLineDash([]);
+    ctx.fillStyle = spinColor(m); ctx.strokeStyle = css('--panel'); ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+  }
+
+  // ---- panels ----
+  function drawF(p) {
+    const n = 500, pts = [];
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i <= n; i++) { const m = -1 + 2 * i / n, y = F(m); pts.push([m, y]); lo = Math.min(lo, y); hi = Math.max(hi, y); }
+    let span = hi - lo; if (span < 0.06) { const mid = (hi + lo) / 2; lo = mid - 0.03; hi = mid + 0.03; span = 0.06; }
+    const v = { x0: -1.08, x1: 1.08, y0: lo - 0.14 * span, y1: hi + 0.2 * span };
+    const A = axes(p, v, { xt: [-1, -0.5, 0, 0.5, 1], yt: niceTicks(v.y0, v.y1, 5), xl: 'm', yl: 'free energy  [kBTc]' });
+    const ctx = p.ctx; A.clip();
+    if (S.showG) {
+      const gp = []; for (let i = 0; i <= n; i++) { const m = -1 + 2 * i / n; gp.push([m, G(m)]); }
+      ctx.strokeStyle = css('--meta'); ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); curve(ctx, gp, A.X, A.Y);
+    }
+    ctx.strokeStyle = css('--accent'); ctx.lineWidth = 2.5; ctx.setLineDash([]); curve(ctx, pts, A.X, A.Y);
+    S.roots.forEach(r => marker(ctx, A.X(r.m), A.Y(r.f), r.kind));
+    const md = S.mDisp; ball(ctx, A.X(md), A.Y(F(md)) - 9, md, 8);
+    ctx.restore();
+  }
+
+  function drawS(p) {
+    const v = { x0: -1.15, x1: 1.15, y0: -1.15, y1: 1.15 };
+    const A = axes(p, v, { xt: [-1, -0.5, 0, 0.5, 1], yt: [-1, -0.5, 0, 0.5, 1], xl: 'm', yl: 'y' });
+    const ctx = p.ctx; A.clip();
+    ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1.5; ctx.setLineDash([2, 4]);
+    curve(ctx, [[-1.2, -1.2], [1.2, 1.2]], A.X, A.Y);
+    const pts = []; for (let i = 0; i <= 400; i++) { const m = -1.2 + 2.4 * i / 400; pts.push([m, Math.tanh((m + S.h) / S.T)]); }
+    ctx.strokeStyle = css('--accent'); ctx.lineWidth = 2.5; ctx.setLineDash([]); curve(ctx, pts, A.X, A.Y);
+    ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1;
+    S.roots.forEach(r => marker(ctx, A.X(r.m), A.Y(r.m), r.kind));
+    ctx.strokeStyle = spinColor(S.mDisp); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(A.X(S.mDisp), A.Y(S.mDisp), 10, 0, 2 * Math.PI); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawH(p) {
+    const v = { x0: -0.36, x1: 0.36, y0: -1.08, y1: 1.08 };
+    const A = axes(p, v, { xt: [-0.3, -0.15, 0, 0.15, 0.3], yt: [-1, -0.5, 0, 0.5, 1], xl: 'h', yl: 'm' });
+    const ctx = p.ctx, T = S.T; A.clip();
+    ctx.strokeStyle = css('--line'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    curve(ctx, [[S.h, v.y0], [S.h, v.y1]], A.X, A.Y);
+    // trail
+    if (S.trail.length > 1) {
+      ctx.save(); ctx.globalAlpha = 0.35; ctx.strokeStyle = css('--fg'); ctx.lineWidth = 5; ctx.setLineDash([]); ctx.lineJoin = 'round';
+      curve(ctx, S.trail, A.X, A.Y); ctx.restore();
+    }
+    const kind = m => { if (Fpp(m, T) < 0) return 'unstable'; const hh = T * atanh(m) - m; return (T >= 1 || m * hh >= -1e-12) ? 'global' : 'meta'; };
+    const style = k => {
+      ctx.setLineDash(k === 'global' ? [] : k === 'meta' ? [7, 5] : [2, 4]);
+      ctx.strokeStyle = k === 'unstable' ? css('--muted') : css('--accent');
+      ctx.lineWidth = k === 'global' ? 2.5 : k === 'meta' ? 2 : 1.6;
+    };
+    const n = 1200; let cur = null, seg = [];
+    for (let i = 0; i <= n; i++) {
+      const m = -0.9995 + 1.999 * i / n, k = kind(m), pt = [T * atanh(m) - m, m];
+      if (k !== cur) { if (seg.length) { seg.push(pt); style(cur); curve(ctx, seg, A.X, A.Y); } seg = [pt]; cur = k; }
+      else seg.push(pt);
+    }
+    style(cur); curve(ctx, seg, A.X, A.Y);
+    ball(ctx, A.X(S.h), A.Y(S.mDisp), S.mDisp);
+    ctx.restore();
+  }
+
+  function drawT(p) {
+    const v = { x0: 0, x1: 2, y0: -1.08, y1: 1.08 };
+    const A = axes(p, v, { xt: [0, 0.5, 1, 1.5, 2], yt: [-1, -0.5, 0, 0.5, 1], xl: 'T / Tc', yl: 'm' });
+    const ctx = p.ctx; A.clip();
+    ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1.6; ctx.setLineDash([2, 4]);
+    curve(ctx, [[0, 0], [1, 0]], A.X, A.Y);
+    const m0 = []; for (let i = 1; i <= 300; i++) { const T = i / 300 * 0.9999; m0.push([T, alignedM(T, 0)]); }
+    m0.push([1, 0]);
+    ctx.strokeStyle = css('--meta'); ctx.lineWidth = 2.2; ctx.setLineDash([]);
+    curve(ctx, m0, A.X, A.Y); curve(ctx, m0.map(([t, m]) => [t, -m]), A.X, A.Y);
+    curve(ctx, [[1, 0], [2, 0]], A.X, A.Y);
+    if (Math.abs(S.h) > 1e-9) {
+      const eq = []; for (let i = 1; i <= 400; i++) { const T = 2 * i / 400; eq.push([T, alignedM(T, S.h)]); }
+      ctx.strokeStyle = css('--accent'); ctx.lineWidth = 2.5; curve(ctx, eq, A.X, A.Y);
+    }
+    ctx.strokeStyle = css('--line'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    curve(ctx, [[S.T, v.y0], [S.T, v.y1]], A.X, A.Y);
+    ball(ctx, A.X(S.T), A.Y(S.mDisp), S.mDisp);
+    ctx.restore();
+  }
+
+  // spin snapshot
+  let spins = [], lastSample = 0, latCols = 0;
+  function sample() {
+    const pUp = (1 + S.mDisp) / 2;
+    for (let i = 0; i < spins.length; i++) spins[i] = Math.random() < pUp ? 1 : -1;
+    const mean = spins.reduce((s, x) => s + x, 0) / spins.length;
+    $('latS').textContent = `This sample: ${spins.filter(s => s > 0).length} up, ${spins.filter(s => s < 0).length} down, average ${fmt(mean, 2)} (target ${fmt(S.mDisp, 2)}).`;
+  }
+  function drawL(p) {
+    const { ctx, W, H } = p, cell = 15;
+    const cols = Math.max(8, Math.floor(W / cell)), rows = Math.max(3, Math.floor(H / cell));
+    if (cols * rows !== spins.length || cols !== latCols) { latCols = cols; spins = new Array(cols * rows).fill(1); sample(); }
+    const ox = (W - cols * cell) / 2, oy = (H - rows * cell) / 2;
+    ctx.clearRect(0, 0, W, H);
+    const up = css('--up'), dn = css('--down');
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      ctx.fillStyle = spins[r * cols + c] > 0 ? up : dn;
+      ctx.fillRect(ox + c * cell + 1, oy + r * cell + 1, cell - 2, cell - 2);
+    }
+  }
+
+  setup('cF', drawF); setup('cS', drawS); setup('cH', drawH); setup('cT', drawT); setup('cL', drawL);
+
+  // ---- loop ----
+  function frame(t) {
+    if (S.sweep) {
+      const keys = [0, 0.3, -0.3, 0.3, 0], seg = 2600;
+      const el = t - S.sweep.t0, i = Math.floor(el / seg);
+      if (i >= keys.length - 1) { S.h = 0; S.sweep = null; $('sweep').textContent = 'Sweep h'; }
+      else { const u = (el - i * seg) / seg; S.h = keys[i] + (keys[i + 1] - keys[i]) * u; }
+      $('sH').value = S.h; update({ trail: true });
+    }
+    const d = S.m - S.mDisp;
+    if (Math.abs(d) > 1e-4) { S.mDisp += d * (S.sweep ? 0.5 : 0.14); S.dirty = true; } else if (d !== 0) { S.mDisp = S.m; S.dirty = true; }
+    if (!reduceMotion && t - lastSample > 650) { lastSample = t; sample(); panels.cL && drawL(panels.cL); }
+    if (S.dirty) {
+      S.dirty = false;
+      for (const p of Object.values(panels)) if (p.W > 0) p.draw(p);
+      if (reduceMotion) sample();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---- events ----
+  $('sT').addEventListener('input', e => { S.T = +e.target.value; S.trail = []; update(); });
+  $('sH').addEventListener('input', e => { if (S.sweep) { S.sweep = null; $('sweep').textContent = 'Sweep h'; } S.h = +e.target.value; update({ trail: true }); });
+  $('showG').addEventListener('change', e => { S.showG = e.target.checked; $('lgG').hidden = !S.showG; S.dirty = true; });
+  $('clear').addEventListener('click', () => { S.trail = []; S.dirty = true; });
+  $('eq').addEventListener('click', () => { const g = S.roots.find(r => r.kind === 'global'); update({ setM: g.m }); });
+  $('sweep').addEventListener('click', () => {
+    if (S.sweep) { S.sweep = null; $('sweep').textContent = 'Sweep h'; return; }
+    S.trail = []; S.h = 0; $('sH').value = 0; update({ trail: true });
+    S.sweep = { t0: performance.now() }; $('sweep').textContent = 'Stop sweep';
+  });
+  const presets = { two: [0.7, 0, 0.8], crit: [1.0, 0, 0.05], para: [1.5, 0, 0], meta: [0.7, 0.05, -0.9] };
+  document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
+    const [T, h, m] = presets[b.dataset.preset];
+    S.sweep = null; $('sweep').textContent = 'Sweep h';
+    S.T = T; S.h = h; $('sT').value = T; $('sH').value = h; S.trail = [];
+    update({ setM: m, trail: true });
+  }));
+  new ResizeObserver(resize).observe(document.querySelector('.wrap'));
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => S.dirty = true);
+  new MutationObserver(() => S.dirty = true).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts) document.fonts.ready.then(() => S.dirty = true);
+
+  resize(); update({ setM: 0.8 }); S.mDisp = S.m;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
